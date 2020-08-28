@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations;
 using LinqToDB.Data;
 using LinqToDB.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -23,14 +24,13 @@ namespace TestProject1
 
             // Linq2Db
             LinqToDBForEFTools.Initialize();
-            DataConnection.TurnTraceSwitchOn();
-            DataConnection.WriteTraceLine = (s, s1) => output.WriteLine("{1}: {0}", s, s1);
         }
     }
     
     public class TestFolder
     {
         public Guid Id { get; set; }
+        [MaxLength(50)]
         public string? Label { get; set; }
         public TestFolder? Parent { get; set; }
         public Guid? ParentId { get; set; }
