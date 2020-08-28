@@ -17,10 +17,10 @@ namespace TestProject1
         public UnitTest1(ITestOutputHelper output)
         {
             _output = output;
-            File.Delete("../../../testing1.db");
-            
             var optionsBuilder = new DbContextOptionsBuilder<MyContext>();
-            optionsBuilder.UseSqlite("DataSource=../../../testing1.db");
+            optionsBuilder.UseSqlServer(@"Server=(localdb)\MSSQLLocalDB;Integrated Security=True;");
+            //optionsBuilder.UseSqlite("DataSource=../../../testing1.db");
+            // File.Delete("../../../testing1.db");
             Context = new MyContext(optionsBuilder.Options);
             Context.EnsureCreatedAndConnectedWithLinq2Db(_output);
         }
@@ -30,6 +30,7 @@ namespace TestProject1
         [Fact]
         public async Task Test1()
         {
+            var testFolderSet = Context.Set<TestFolder>();
             var testFolderRoot = new TestFolder
             {
                 Id = Guid.Parse("10000000-0000-0000-0000-000000000000"), Label = "root", ParentId = null
@@ -42,7 +43,13 @@ namespace TestProject1
             {
                 Id = Guid.Parse("10000000-0000-0000-0000-000000000002"), Label = "B", ParentId = testFolderRoot.Id
             };
-            Context.Set<TestFolder>().AddRange(testFolderRoot, testFolderA, testFolderB);
+            if (!testFolderSet.Any(f => f.Id == testFolderRoot.Id))
+                testFolderSet.Add(testFolderRoot);
+            if (!testFolderSet.Any(f => f.Id == testFolderA.Id))
+                testFolderSet.Add(testFolderA);
+            if (!testFolderSet.Any(f => f.Id == testFolderB.Id))
+                testFolderSet.Add(testFolderB);
+
             await Context.SaveChangesAsync();
             
             await using var db = Context.CreateLinq2DbConnectionDetached();
@@ -52,7 +59,7 @@ namespace TestProject1
                         .ToLinqToDBTable()
                         .Where(c => c.ParentId == null)
                         .Select(c =>
-                            new CteEntity<TestFolder>() {Level = 0, Id = c.Id, ParentId = c.ParentId, Label = c.Label, Entity = c}))
+                            new CteEntity<TestFolder>() {Level = 0, Id = c.Id, ParentId = c.ParentId, Label = (string)c.Label}))
                     .Concat(
                         Context.Set<TestFolder>()
                             .ToLinqToDBTable()
@@ -63,12 +70,23 @@ namespace TestProject1
                                     Id = c.Id,
                                     ParentId = c.ParentId,
                                     Label = r.Label + '/' + c.Label,
-                                    Entity = c
                                 })
                     );
             });
             
-            Assert.Equal(3, q.Count());
+            var query = q.SelectMany(c => Context.Set<TestFolder>().InnerJoin(p => p.Id == c.Id),
+                (c, e) => new CteEntity<TestFolder>
+                {
+                    Id = c.Id,
+                    Level = c.Level,
+                    ParentId = c.ParentId,
+                    Label = c.Label,
+                    Entity = e
+                });
+            
+            
+            Assert.Equal(3, query.Count());
+            db.Connection.Close();
         }
     }
     
